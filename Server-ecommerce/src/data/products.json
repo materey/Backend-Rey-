@@ -1,0 +1,22 @@
+[
+    {
+        "id": "1",
+        "title": "Laptop",
+        "description": "Laptop potente para trabajo y juegos",
+        "code": "LP100",
+        "price": 1000,
+        "status": true,
+        "stock": 50,
+        "category": "Tecnología"
+    },
+    {
+        "id": "2",
+        "title": "Auriculares",
+        "description": "Auriculares inalámbricos con cancelación de ruido",
+        "code": "AU200",
+        "price": 200,
+        "status": true,
+        "stock": 100,
+        "category": "Accesorios"
+    }
+]
