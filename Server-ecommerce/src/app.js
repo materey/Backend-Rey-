@@ -1,47 +1,46 @@
 const express = require('express');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
 const fs = require('fs');
+const path = require('path');
+
 const app = express();
-const PORT = 8080;
+const httpServer = createServer(app);
+const io = new Server(httpServer);
+const port = 8080;
+
+
+app.engine('handlebars', require('express-handlebars')());
+app.set('view engine', 'handlebars');
+app.set('views', path.join(__dirname, 'views'));
 
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
+
+app.use(express.static(path.join(__dirname, 'public')));
 
 const productsPath = './data/products.json';
-const cartsPath = './data/carts.json';
-
-const readFile = (path) => {
-    return JSON.parse(fs.readFileSync(path, 'utf-8'));
-};
-
-const writeFile = (path, data) => {
-    fs.writeFileSync(path, JSON.stringify(data, null, 2));
-};
+const readFile = (path) => JSON.parse(fs.readFileSync(path, 'utf-8'));
+const writeFile = (path, data) => fs.writeFileSync(path, JSON.stringify(data, null, 2));
 
 
-
-
-app.get('/api/products', (req, res) => {
+app.get('/home', (req, res) => {
     const products = readFile(productsPath);
-    const limit = req.query.limit ? parseInt(req.query.limit) : products.length;
-    res.json(products.slice(0, limit));
+    res.render('home', { products });
 });
 
-
-app.get('/api/products/:pid', (req, res) => {
+app.get('/realtimeproducts', (req, res) => {
     const products = readFile(productsPath);
-    const product = products.find(p => p.id === req.params.pid);
-    if (!product) {
-        return res.status(404).json({ error: 'Producto no encontrado' });
-    }
-    res.json(product);
+    res.render('realTimeProducts', { products });
 });
 
 
 app.post('/api/products', (req, res) => {
     const products = readFile(productsPath);
     const newProduct = {
-        id: (products.length + 1).toString(), 
+        id: (products.length + 1).toString(),
         title: req.body.title,
         description: req.body.description,
         code: req.body.code,
@@ -52,24 +51,12 @@ app.post('/api/products', (req, res) => {
     };
     products.push(newProduct);
     writeFile(productsPath, products);
+
+
+    io.emit('productUpdated', products);
+
     res.status(201).json(newProduct);
 });
-
-
-app.put('/api/products/:pid', (req, res) => {
-    const products = readFile(productsPath);
-    const index = products.findIndex(p => p.id === req.params.pid);
-    if (index === -1) {
-        return res.status(404).json({ error: 'Producto no encontrado' });
-    }
-
-    const updatedProduct = { ...products[index], ...req.body };
-    delete updatedProduct.id; 
-    products[index] = updatedProduct;
-    writeFile(productsPath, products);
-    res.json(updatedProduct);
-});
-
 
 app.delete('/api/products/:pid', (req, res) => {
     const products = readFile(productsPath);
@@ -78,59 +65,22 @@ app.delete('/api/products/:pid', (req, res) => {
         return res.status(404).json({ error: 'Producto no encontrado' });
     }
     writeFile(productsPath, newProducts);
+
+
+    io.emit('productUpdated', newProducts);
+
     res.status(204).send();
 });
 
 
-
-
-app.post('/api/carts', (req, res) => {
-    const carts = readFile(cartsPath);
-    const newCart = {
-        id: (carts.length + 1).toString(), 
-        products: []
-    };
-    carts.push(newCart);
-    writeFile(cartsPath, carts);
-    res.status(201).json(newCart);
+io.on('connection', (socket) => {
+    console.log('Cliente conectado');
+    socket.on('disconnect', () => {
+        console.log('Cliente desconectado');
+    });
 });
 
 
-app.get('/api/carts/:cid', (req, res) => {
-    const carts = readFile(cartsPath);
-    const cart = carts.find(c => c.id === req.params.cid);
-    if (!cart) {
-        return res.status(404).json({ error: 'Carrito no encontrado' });
-    }
-    res.json(cart.products);
-});
-
-
-app.post('/api/carts/:cid/product/:pid', (req, res) => {
-    const carts = readFile(cartsPath);
-    const cart = carts.find(c => c.id === req.params.cid);
-    if (!cart) {
-        return res.status(404).json({ error: 'Carrito no encontrado' });
-    }
-
-    const products = readFile(productsPath);
-    const productExists = products.find(p => p.id === req.params.pid);
-    if (!productExists) {
-        return res.status(404).json({ error: 'Producto no encontrado' });
-    }
-
-    const productInCart = cart.products.find(p => p.product === req.params.pid);
-    if (productInCart) {
-        productInCart.quantity += 1;
-    } else {
-        cart.products.push({ product: req.params.pid, quantity: 1 });
-    }
-
-    writeFile(cartsPath, carts);
-    res.json(cart);
-});
-
-
-app.listen(PORT, () => {
-    console.log(`Servidor escuchando en localhost:${PORT}`);
+httpServer.listen(port, () => {
+    console.log(`Servidor escuchando en http://localhost:${port}`);
 });
